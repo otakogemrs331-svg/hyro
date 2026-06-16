@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@theme {
+  --color-midnight: #050E0C;
+  --color-forest: #0B1916;
+  --color-sage: #2D4C43;
+  --color-gold: #D4AF37;
+  --color-gold-light: #E6C662;
+  --color-cream: #FAF9F6;
+  --color-cream-muted: #C8C5BD;
+  
+  --font-serif: var(--font-playfair), serif;
+  --font-sans: var(--font-montserrat), sans-serif;
+  
+  --animate-fade-in: fade-in 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-slide-up: slide-up 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+:root {
+  --background: #050E0C;
+  --foreground: #FAF9F6;
+}
+
+html, body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  scroll-behavior: smooth;
+}
+
+/* Custom luxury scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #050E0C;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2D4C43;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #D4AF37;
+}
+
+/* Premium transition utility class */
+.transition-luxury {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  transition-duration: 400ms;
+}
+
+/* Elegant gold gradient border underline */
+.luxury-underline {
+  position: relative;
+}
+.luxury-underline::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  transform: scaleX(0);
+  height: 1px;
+  bottom: -2px;
+  left: 0;
+  background: linear-gradient(90deg, transparent, #D4AF37, transparent);
+  transform-origin: bottom right;
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.luxury-underline:hover::after {
+  transform: scaleX(1);
+  transform-origin: bottom left;
+}
+
+/* Fine-grain print layout or borders */
+.border-gold-subtle {
+  border-color: rgba(212, 175, 55, 0.15);
+}
+
+/* Glow effects for gold details */
+.gold-glow:hover {
+  text-shadow: 0 0 8px rgba(212, 175, 55, 0.4);
+}
