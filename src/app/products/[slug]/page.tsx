@@ -1,7 +1,7 @@
 import React from "react";
 import { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "navigation"; // Wait, in Next.js it is from "next/navigation". Let's use 'next/navigation'
+import { notFound } from "next/navigation";
 import { getMockProductBySlug, getMockProducts } from "@/data/mockProducts";
 import ProductDetailClient from "./ProductDetailClient";
 
