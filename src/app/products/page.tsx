@@ -3,29 +3,110 @@
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { getMockProducts, getMockCategories, Category } from "@/data/mockProducts";
+import { supabase } from "@/lib/supabase";
 import { Product, useCart } from "@/context/CartContext";
 import { SearchIcon, StarIcon, PlusIcon } from "@/components/icons";
+
+// Local view-model for a category row. Kept inline so this page has zero
+// dependency on the mock-data module (which also exported `Category`).
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
 
 const ProductListContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { addToCart } = useCart();
-  
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   // Filter states loaded from searchParams
   const selectedTheme = searchParams.get("theme") || "all";
   const selectedGenre = searchParams.get("genre") || "all";
 
+  // Single Influx Performance Rule: one initial fetch on mount only.
+  // searchParams changes must NOT trigger a new network request — the
+  // active catalog is filtered in-memory below to avoid flicker / API churn.
   useEffect(() => {
-    setProducts(getMockProducts());
-    setCategories(getMockCategories());
-    
-    const query = searchParams.get("q") || "";
-    setSearchQuery(query);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // Parallel single influx — both tables fetched together.
+        const [productsRes, categoriesRes] = await Promise.all([
+          supabase.from("products").select("*"),
+          supabase.from("categories").select("id, name, slug"),
+        ]);
+
+        if (cancelled) return;
+
+        const rawProducts = (productsRes.data || []) as Array<Record<string, unknown>>;
+        const rawCategories = (categoriesRes.data || []) as Array<Record<string, unknown>>;
+
+        // Safe Data Mapping: normalize DB rows into local types.
+        // - price / stock safely parsed as Number()
+        // - theme_tags / images default to [] when null/missing
+        // - product title may live in either `title` or `name`
+        const mappedProducts: Product[] = rawProducts.map((row) => {
+          const themeTags = Array.isArray(row.theme_tags)
+            ? (row.theme_tags as unknown[]).map(String)
+            : [];
+          const images = Array.isArray(row.images)
+            ? (row.images as unknown[]).map(String)
+            : [];
+          return {
+            id: String(row.id),
+            name: String(row.name ?? row.title ?? "Untitled"),
+            author: String(row.author ?? "Unknown"),
+            genre: String(row.genre ?? "Uncategorized"),
+            slug: String(row.slug ?? row.id),
+            description: String(row.description ?? ""),
+            price: Number(row.price) || 0,
+            stock: Number(row.stock) || 0,
+            category_id: row.category_id ? String(row.category_id) : "",
+            theme_tags: themeTags,
+            images: images,
+          };
+        });
+
+        const mappedCategories: Category[] = rawCategories.map((row) => ({
+          id: String(row.id),
+          name: String(row.name ?? "Unnamed"),
+          slug: String(row.slug ?? row.id),
+        }));
+
+        setProducts(mappedProducts);
+        setCategories(mappedCategories);
+      } catch (err) {
+        // Network / auth failure: keep the catalog empty so the empty-state
+        // UI renders gracefully rather than throwing mid-render.
+        console.error("Failed to load catalog from Bolt Database:", err);
+        if (!cancelled) {
+          setProducts([]);
+          setCategories([]);
+        }
+      }
+
+      if (!cancelled) {
+        const query = searchParams.get("q") || "";
+        setSearchQuery(query);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep the local search box in sync with the URL `q` param on subsequent
+  // navigation — without re-fetching from Bolt Database.
+  useEffect(() => {
+    setSearchQuery(searchParams.get("q") || "");
   }, [searchParams]);
 
   // Handle filter changes by updating router query params
@@ -33,10 +114,10 @@ const ProductListContent = () => {
     const params = new URLSearchParams();
     if (newTheme !== "all") params.set("theme", newTheme);
     if (newGenre !== "all") params.set("genre", newGenre);
-    
+
     const q = queryText !== undefined ? queryText : searchQuery;
     if (q.trim()) params.set("q", q.trim());
-    
+
     router.push(`/products?${params.toString()}`);
   };
 
@@ -50,7 +131,8 @@ const ProductListContent = () => {
     router.push("/products");
   };
 
-  // Process filters
+  // Process filters — operates purely on the pre-fetched in-memory catalog.
+  // No Bolt Database fetch is triggered when filters/searchParams change.
   const filteredProducts = products.filter((p) => {
     // Search query matches product name, author, or genre
     const query = (searchParams.get("q") || "").toLowerCase().trim();
@@ -99,7 +181,7 @@ const ProductListContent = () => {
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-        
+
         {/* Filters Sidebar */}
         <aside className="space-y-8 bg-forest/30 border border-gold-subtle/20 rounded p-6 lg:sticky lg:top-24">
           <div>
@@ -200,7 +282,7 @@ const ProductListContent = () => {
               {filteredProducts.map((product) => {
                 const bgTheme = product.images[0] || "#0B1916";
                 const borderTheme = product.images[1] || "#D4AF37";
-                
+
                 return (
                   <div
                     key={product.id}
@@ -238,7 +320,7 @@ const ProductListContent = () => {
 
                       {/* Cover spine shadow overlay for realism */}
                       <div className="absolute top-2 bottom-2 left-2 w-1.5 bg-black/30 blur-[1px] rounded-l" />
-                      
+
                       {/* Floating Add to Cart Button */}
                       <button
                         onClick={(e) => {
@@ -269,13 +351,13 @@ const ProductListContent = () => {
                             </span>
                           ))}
                         </div>
-                        
+
                         <h2 className="font-serif text-lg text-cream font-light tracking-wide line-clamp-1 group-hover:text-gold transition-luxury">
                           <Link href={`/products/${product.slug}`}>
                             {product.name}
                           </Link>
                         </h2>
-                        
+
                         <p className="text-xs text-cream-muted line-clamp-2 mt-1 font-light leading-relaxed">
                           {product.description}
                         </p>
@@ -285,7 +367,7 @@ const ProductListContent = () => {
                         <span className="font-serif text-gold text-base font-semibold">
                           ${product.price.toFixed(2)}
                         </span>
-                        
+
                         <span className="text-[10px] text-cream-muted font-light">
                           {product.stock <= 3
                             ? `Only ${product.stock} left`
@@ -316,3 +398,4 @@ export default function ProductListPage() {
     </Suspense>
   );
 }
+
